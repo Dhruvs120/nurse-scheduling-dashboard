@@ -22,7 +22,7 @@ A Streamlit-based dashboard to generate and view nurse schedules with cost analy
 
 ## Usage
 1. Launch the app:
-   ```bash
+   ```bash or powershell
    streamlit run Welcome.py
 2. Navigate to the *Submit* page.
 3. Determine whether manual additions of shifts should be required, if so, navigate to the Manual entry.
