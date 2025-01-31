@@ -1,0 +1,18 @@
+[theme]
+# Set the base theme to light
+base = "light"
+
+# Primary color for interactive elements like buttons and links
+primaryColor = "#1E90FF"  # Adjust as needed
+
+# Background color of the main content area
+backgroundColor = "#ffffff"
+
+# Secondary background color for sidebar and other secondary elements
+secondaryBackgroundColor = "#F0F2F6"
+
+# Text color for the main content
+textColor = "#000000"
+
+# Font settings
+font = "sans serif"
