@@ -1,7 +1,6 @@
 import streamlit as st
 from NRP_OBP_D import main
 import os
-from functions import add_nurse_entry
 import pandas as pd
 from datetime import time
 
@@ -100,6 +99,15 @@ with tab1:
             "I confirm the input file follows the required format",
             help="Make sure your file follows the template structure"
         )
+        
+        # Time limit input
+        time_limit = st.number_input(
+            "Time Limit (seconds)",
+            min_value=1,
+            value=300,
+            step=1,
+            help="Set the time limit for the scheduling algorithm"
+        )
 
         # Submit button
         submitted = st.form_submit_button("Generate Schedule")
@@ -113,7 +121,7 @@ with tab1:
             else:
                 with st.spinner('Generating optimal schedule...'):
                     try:
-                        model_result = main(uploaded_file, day_rate, night_rate, "only")
+                        model_result = main(uploaded_file, day_rate, night_rate, "only", time_limit)
                         
                         # Check if model is infeasible
                         if model_result.Status == 3:  # GRB.Status.INFEASIBLE
@@ -182,6 +190,15 @@ with tab2:
     agree = st.checkbox(
         "I confirm the input file follows the required format",
         help="Make sure your file follows the template structure"
+    )
+    
+    # Time limit input
+    time_limit = st.number_input(
+        "Time Limit (seconds)",
+        min_value=1,
+        value=300,
+        step=1,
+        help="Set the time limit for the scheduling algorithm"
     )
 
 
@@ -397,7 +414,7 @@ with tab2:
 
             with st.spinner('Generating optimal schedule...'):
                 try:
-                    model_result = main("temp_data.xlsx", day_rate, night_rate, "nothing")
+                    model_result = main("temp_data.xlsx", day_rate, night_rate, "nothing", time_limit)
                     
                     # Check if model is infeasible
                     if model_result.Status == 3:  # GRB.Status.INFEASIBLE

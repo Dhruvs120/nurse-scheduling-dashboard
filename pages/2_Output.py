@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit_calendar as sc
 import pandas as pd
 from functions import calendar_creator, handle_view_change, create_excel_schedule
 import plotly.express as px

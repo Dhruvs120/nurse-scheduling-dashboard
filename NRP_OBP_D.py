@@ -31,12 +31,12 @@ handover_time_range = range(handover_start, handover_end)
 handover_duration = 2  # 2 intervals = 30 minutes
 break_duration = 2  # 2 intervals = 30 minutes
 
-def model_start(tasks_df, shift_df, day_salary, night_salary):
+def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
     schedule_costs = gp.Model("NurseScheduling")
     
     # Model parameters
     schedule_costs.setParam('OutputFlag', 1)
-    schedule_costs.setParam('TimeLimit', 300)
+    schedule_costs.setParam('TimeLimit', time_limit)
 
     # variables for shift scheduling
     shift_scheduled = schedule_costs.addVars(shift_df.index, vtype=gp.GRB.BINARY, name=f"shift_scheduled")
@@ -432,7 +432,7 @@ def model_start(tasks_df, shift_df, day_salary, night_salary):
 
     return schedule_costs
 
-def main(file_path, day_salary, night_salary, type_upload='only'):
+def main(file_path, day_salary, night_salary, type_upload='only', time_limit=300):
     # Salary zou dan doorgetrokken moeten worden naar de model_start functie
     # Read tasks
     tasks_df = pd.read_excel(file_path, sheet_name='Tasks')
@@ -519,7 +519,7 @@ def main(file_path, day_salary, night_salary, type_upload='only'):
     # print(shift_df[shift_df['Nurse_ID'] == 10])
 
     # Create and solve model
-    model = model_start(tasks_df, shift_df, day_salary, night_salary)
+    model = model_start(tasks_df, shift_df, day_salary, night_salary, time_limit)
     model.optimize()
     #summary 
     # # print indices of all shift_scheduled items that are 1

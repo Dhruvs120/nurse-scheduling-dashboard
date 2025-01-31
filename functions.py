@@ -31,12 +31,6 @@ def handle_generate_click(uploaded_file, day_rate, night_rate):
             st.session_state.schedule_generated = True
             st.session_state.calendar_data = st.session_state.model
 
-def add_nurse_entry():
-    preset_options = ["Kostwinner zonder kinderen", "Kostwinner met kinderen", "Young Professional",
-                    "Kids First", "Mantelzorger", "Vrije vogel", "Student"]
-    
-    st.session_state.nurse_entries.append({"preset": preset_options[0], "number": 1})
-
 def create_excel_schedule(nurse_shifts, break_shifts, handover1, handover2):
 
     excel_buffer = BytesIO()
