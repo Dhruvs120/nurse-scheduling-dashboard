@@ -1,9 +1,7 @@
-import os
-import re
 import pandas as pd
-import numpy as np
 import gurobipy as gp
 
+# variable declarations
 weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 # create intervals for each day of the week
 monday_intervals = range(0, 96)
@@ -13,6 +11,11 @@ thursday_intervals = range(288, 384)
 friday_intervals = range(384, 480)
 saturday_intervals = range(480, 576) 
 sunday_intervals = range(576, 672)
+
+obj_vals = []
+
+min_shift_per_week = 4
+max_shifts_per_week = 5
 
 days = {
     'Monday': monday_intervals,
@@ -67,7 +70,6 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
 
     #variable for costs
     salary_per_interval = schedule_costs.addVars(time_range, vtype=gp.GRB.CONTINUOUS, name="salary_per_interval")
-    #total_salary_day = schedule_costs.addVar(len(days), vtype=gp.GRB.CONTINUOUS, name=f"total_salary_day")
 
     # Start time variable
     start_interval_var = schedule_costs.addVars(tasks_df.index,
@@ -131,20 +133,19 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
 
             # H Make sure nurse has at least 4 shifts when scheduled
             schedule_costs.addConstr(
-                gp.quicksum(shift_scheduled[i] for i in nurse_shifts) >= 4 * nurse_used
+                gp.quicksum(shift_scheduled[i] for i in nurse_shifts) >= min_shift_per_week * nurse_used
             )
 
             # I Make sure nurse has at most 5 shifts when scheduled
             schedule_costs.addConstr(
-                gp.quicksum(shift_scheduled[i] for i in nurse_shifts) <= 5 * nurse_used
+                gp.quicksum(shift_scheduled[i] for i in nurse_shifts) <= max_shifts_per_week * nurse_used
             )
 
 
     # 2 break related constraints
     for shift_id in shift_df.index:
-        break_duration = 2  # 2 intervals = 30 minutes
 
-        # make a variable that is break window start and break window end
+        # make a variable that is break window start and break window end, 2 hour window
         break_window_start = shift_df.loc[shift_id, 'Start'] + 14
         break_window_end = shift_df.loc[shift_id, 'Start'] + 21
 
@@ -234,10 +235,10 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
             name=f"start_time_constraint_upper_{task_id}"
         )
 
+
     # initialize handover missed vector which is no gurobi variable but a boolean
     handover1_happening = [False] * len(shift_df)
     handover2_happening = [False] * len(shift_df)
-
     
     # 4 handover related constraints
     for shift_id in shift_df.index:
@@ -247,8 +248,6 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
         
         handover2_start_time = shift_df.loc[shift_id, 'End'] - 2
         handover2_end_time = shift_df.loc[shift_id, 'End'] - 1
-
-        handover_duration = 2  # 2 intervals = 30 minutes
 
         # check whether handover is missed with a boolean variable
         handover1_happening[shift_id] = handover1_end_time > handover_start
@@ -363,6 +362,23 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
         schedule_costs.addConstr(
             all_nurses_active_at_time[t] >= 2
         )
+    
+    # Create variables for total nurses present and active at each interval
+    total_interval_nurses_present = schedule_costs.addVar(vtype=gp.GRB.INTEGER, name="total_nurses_present")
+    total_interval_nurses_with_tasks = schedule_costs.addVar(vtype=gp.GRB.INTEGER, name="total_nurses_tasks")
+    total_interval_nurses_active = schedule_costs.addVar(vtype=gp.GRB.INTEGER, name="total_nurses_active")
+    # Add constraints to calculate totals across all intervals and shifts
+    schedule_costs.addConstr(
+        total_interval_nurses_present == gp.quicksum(all_nurses_active_at_time[t] for t in time_range)
+    )
+    schedule_costs.addConstr(
+        total_interval_nurses_with_tasks == gp.quicksum(nurses_needed[t] for t in time_range)
+    )
+    schedule_costs.addConstr(
+        total_interval_nurses_active == gp.quicksum(nurses_needed[t] + all_handover1_active[t] + all_handover2_active[t] + (1/3 * handover_needed[t]) for t in time_range)
+    )
+
+
 
     # D Calculate the total salary per interval
     # Night shifts (00:00-07:00)
@@ -381,6 +397,7 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
             schedule_costs.addConstr(
                 salary_per_interval[t] == gp.quicksum(nurse_active_at_time[shift_id, t] * (night_salary/4) for shift_id in shift_df.index)
             )
+
     
 
     # E total salary per day
@@ -429,7 +446,6 @@ def model_start(tasks_df, shift_df, day_salary, night_salary, time_limit):
 
     # Objective function
     schedule_costs.setObjective(total_weekly_salary, gp.GRB.MINIMIZE)
-
     return schedule_costs
 
 def main(file_path, day_salary, night_salary, type_upload='only', time_limit=300):
@@ -516,75 +532,7 @@ def main(file_path, day_salary, night_salary, type_upload='only', time_limit=300
     # Reset index to make it continuous
     shift_df = shift_df.reset_index(drop=True)
 
-    # print(shift_df[shift_df['Nurse_ID'] == 10])
-
     # Create and solve model
     model = model_start(tasks_df, shift_df, day_salary, night_salary, time_limit)
     model.optimize()
-    #summary 
-    # # print indices of all shift_scheduled items that are 1
-    # scheduled_shifts = []
-    # for v in model.getVars():
-    #     if 'shift_scheduled' in v.varName and v.x == 1:
-    #         # Extract index number from varName using regex
-    #         idx = int(re.findall(r'shift_scheduled\[(\d+)\]', v.varName)[0])
-    #         scheduled_shifts.append(idx)
-    # print("Indices of scheduled shifts:", scheduled_shifts)
-
-    # # print the Nurs_ID of the scheduled shifts
-    # nurses_scheduled = []
-    # for idx in scheduled_shifts:
-    #     nurses_scheduled.append(shift_df.loc[idx, 'Nurse_ID'])
-    # # print("Nurse_ID of scheduled shifts:", nurses_scheduled)
-
-    # # Print unique nurse IDs
-    # unique_nurses = sorted(list(set(nurses_scheduled)))
-    # print("\nUnique Nurse IDs scheduled:")
-    # print(unique_nurses)
-    # print(f"Number of nurses scheduled: {len(unique_nurses)}")
-    
-    # # Print scheduled shifts for each nurse
-    # print("\nDetailed schedule per nurse:")
-    # for nurse in shift_df['Nurse_ID'].unique():
-    #     nurse_shifts = shift_df[shift_df['Nurse_ID'] == nurse].index
-    #     scheduled_shifts = []
-    #     for shift_id in nurse_shifts:
-    #         if model.getVarByName(f'shift_scheduled[{shift_id}]').X == 1:
-    #             day = weekdays[shift_df.loc[shift_id, 'Day']-1]
-    #             start_time = f"{int(shift_df.loc[shift_id, 'Start']%96/4):02d}:{int((shift_df.loc[shift_id, 'Start']%96%4)*15):02d}"
-    #             end_time = f"{int(shift_df.loc[shift_id, 'End']%96/4):02d}:{int((shift_df.loc[shift_id, 'End']%96%4)*15):02d}"
-    #             scheduled_shifts.append(f"{day} {start_time}-{end_time}")
-    #     if scheduled_shifts:  # Only print if nurse has scheduled shifts
-    #         print(f"\nNurse {nurse} shifts:")
-    #         for shift in scheduled_shifts:
-    #             print(f"  {shift}")
-    
-    # #print the total salary per day
-    # print(f"\nTotal salary per day:")
-    # print(f"Monday: {model.getVarByName('total_salary_monday').X}")
-    # print(f"Tuesday: {model.getVarByName('total_salary_tuesday').X}")
-    # print(f"Wednesday: {model.getVarByName('total_salary_wednesday').X}")
-    # print(f"Thursday: {model.getVarByName('total_salary_thursday').X}")
-    # print(f"Friday: {model.getVarByName('total_salary_friday').X}")
-    # print(f"Saturday: {model.getVarByName('total_salary_saturday').X}")
-    # print(f"Sunday: {model.getVarByName('total_salary_sunday').X}")
-        
-    # # Print results
-    # if os.path.exists('results.txt'):
-    #     os.remove('results.txt')
-
-    # with open('results.txt', 'w') as f:
-    #     for v in model.getVars():
-    #         f.write(f"{v.varName}: {v.X}\n")
-    # print(f"Results written to results.txt")
-    # print(f"\nObj: {model.objVal}")
-
-    # model.computeIIS()
-    # model.write("infeasible_model.ilp")
-    
     return model
-
-# file_path = "Hospital_Data_ext.xlsx"
-# day_wage = 15
-# night_wage = 20
-# main(file_path, day_wage, night_wage)

@@ -143,6 +143,30 @@ try:
                     labels={'Cost': 'Cost (€)'},
                     color='Cost')
         st.plotly_chart(fig, use_container_width=True)
+        
+        
+        # Activity measures
+        total_nurses_present_value = model.getVarByName("total_nurses_present").X
+        total_nurses_with_tasks_value = model.getVarByName("total_nurses_tasks").X
+        total_nurses_active_value = model.getVarByName("total_nurses_active").X
+
+        # Calculate the ratios
+        if total_nurses_present_value > 0:
+            tasks_ratio = total_nurses_with_tasks_value / total_nurses_present_value
+            active_ratio = total_nurses_active_value / total_nurses_present_value
+        else:
+            tasks_ratio = 0
+            active_ratio = 0
+
+        # Display the results
+        st.markdown("### Activity Measures")
+        activity_cols = st.columns(2)
+
+        with activity_cols[0]:
+            st.metric("Ratio of nurses working on tasks", f"{tasks_ratio:.2f}")
+
+        with activity_cols[1]:
+            st.metric("Ratio of nurses actively working (including handovers)", f"{active_ratio:.2f}")
 
 except Exception as e:
     st.error(f"❌ Error displaying schedule: {str(e)}")
